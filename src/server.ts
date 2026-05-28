@@ -300,6 +300,6 @@ export async function buildServer() {
 
 if (process.argv[1]?.endsWith('server.js') || process.argv[1]?.endsWith('server.ts')) {
   const app = await buildServer();
-  const port = Number(process.env.PORT ?? 3000);
+  const port = Number(process.env.PORT ?? 5001);
   await app.listen({ port, host: '0.0.0.0' });
 }
