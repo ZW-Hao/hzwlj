@@ -28,14 +28,23 @@ function sizeFromAspectRatio(aspectRatio: string) {
 async function persistDataUrl(dataUrl: string, index: number) {
   const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
   if (!match) return null;
-  const extension = match[1] === 'jpeg' ? 'jpg' : match[1];
+  return persistBase64Image(match[2], match[1] === 'jpeg' ? 'jpg' : match[1], index);
+}
+
+async function persistBase64Image(base64: string, extension: string, index: number) {
   const filename = `${Date.now()}-${index}.${extension}`;
-  await fs.writeFile(path.join(generatedDir, filename), Buffer.from(match[2], 'base64'));
+  await fs.writeFile(path.join(generatedDir, filename), Buffer.from(base64, 'base64'));
   return publicStorageUrl('generated', filename);
 }
 
+export function generationEndpoint(apiBaseUrl: string) {
+  const url = new URL(apiBaseUrl);
+  if (url.pathname.endsWith('/images/generations')) return url.toString();
+  return new URL('images/generations', `${url.toString().replace(/\/$/, '')}/`).toString();
+}
+
 export async function generateImages(input: GenerateInput) {
-  const endpoint = new URL('/images/generations', input.config.apiBaseUrl).toString();
+  const endpoint = generationEndpoint(input.config.apiBaseUrl);
   const prompt = [input.prompt, input.purpose, input.style].filter(Boolean).join('\n');
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -51,7 +60,7 @@ export async function generateImages(input: GenerateInput) {
       response_format: 'url',
       input_image_url: input.inputImageUrl
     }),
-    signal: AbortSignal.timeout(60_000)
+    signal: AbortSignal.timeout(180_000)
   });
 
   if (!response.ok) {
@@ -62,9 +71,14 @@ export async function generateImages(input: GenerateInput) {
   const payload = (await response.json()) as { data?: Array<{ url?: string; b64_json?: string }> };
   const urls: string[] = [];
   for (const [index, item] of (payload.data ?? []).entries()) {
-    if (item.url) urls.push(item.url);
+    if (item.url?.startsWith('data:image/')) {
+      const saved = await persistDataUrl(item.url, index);
+      if (saved) urls.push(saved);
+    } else if (item.url) {
+      urls.push(item.url);
+    }
     if (item.b64_json) {
-      const saved = await persistDataUrl(`data:image/png;base64,${item.b64_json}`, index);
+      const saved = await persistBase64Image(item.b64_json, 'png', index);
       if (saved) urls.push(saved);
     }
   }

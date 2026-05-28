@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { clearDb, db } from '../src/db.js';
+import { generationEndpoint } from '../src/provider.js';
 import { buildServer } from '../src/server.js';
 
 afterEach(() => clearDb());
@@ -34,6 +35,11 @@ describe('commerce AI canvas backend', () => {
     expect(JSON.stringify(configResponse.json())).not.toContain('sk-test');
     expect(db.userModelConfigs[0].apiKeyEncrypted).not.toContain('sk-test');
     await app.close();
+  });
+
+  it('supports complete provider generation endpoints', () => {
+    expect(generationEndpoint('https://api.kkone.vip/v1/images/generations')).toBe('https://api.kkone.vip/v1/images/generations');
+    expect(generationEndpoint('https://api.kkone.vip/v1')).toBe('https://api.kkone.vip/v1/images/generations');
   });
 
   it('rejects unsafe provider urls', async () => {
